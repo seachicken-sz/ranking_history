@@ -12,10 +12,13 @@ const state = {
   filter: 'all',
   snapshotSearch: '',
   historySearch: '',
+  programSearch: '',
+  selectedProgram: '',
   failedFiles: []
 };
 
 const elements = {};
+const CHART_COLORS = ['#335cff','#147d4f','#c43d4f','#9a5b00','#7a4bc2','#00879a','#b65f00','#5b6b7d','#d14f8f','#4d7c0f'];
 
 document.addEventListener('DOMContentLoaded', () => {
   cacheElements();
@@ -29,11 +32,14 @@ function cacheElements() {
     'latestUpdatedAt','previousSnapshotButton','nextSnapshotButton',
     'currentObservedAt','snapshotPosition','snapshotSearchInput',
     'clearSnapshotSearchButton','snapshotSearchResultText','historyModePanel',
-    'snapshotModePanel','historySearchInput','clearHistorySearchButton',
+    'snapshotModePanel','graphModePanel','historySearchInput','clearHistorySearchButton',
     'historySearchResultText','historyPeriodRange','rankingTabs','warningMessage',
     'rankedCount','upCount','newCount','outCount','rankingTypeLabel',
     'rankingTableTitle','tableNote','historyTimeHeader','rankingTableBody',
-    'emptyRankingMessage','outSection','outList'
+    'emptyRankingMessage','outSection','outList','snapshotDateSelect',
+    'programSearchInput','programSelect','graphResultText','rankingSummary',
+    'rankingTableSection','graphSection','graphRankingTypeLabel','graphTitle',
+    'graphLegend','programChart','emptyGraphMessage'
   ].forEach((id) => {
     elements[id] = document.getElementById(id);
   });
@@ -60,6 +66,10 @@ function bindEvents() {
   elements.previousSnapshotButton.addEventListener('click', () => moveSnapshot(-1));
   elements.nextSnapshotButton.addEventListener('click', () => moveSnapshot(1));
 
+  elements.snapshotDateSelect.addEventListener('change', (event) => {
+    moveToDate(String(event.target.value || ''));
+  });
+
   elements.snapshotSearchInput.addEventListener('input', (event) => {
     state.snapshotSearch = normalizeText(event.target.value);
     elements.clearSnapshotSearchButton.disabled = !state.snapshotSearch;
@@ -84,6 +94,17 @@ function bindEvents() {
     state.historySearch = '';
     elements.clearHistorySearchButton.disabled = true;
     render();
+  });
+
+  elements.programSearchInput.addEventListener('input', (event) => {
+    state.programSearch = normalizeText(event.target.value);
+    buildProgramSelect();
+    renderGraph();
+  });
+
+  elements.programSelect.addEventListener('change', (event) => {
+    state.selectedProgram = String(event.target.value || '');
+    renderGraph();
   });
 }
 
@@ -111,9 +132,7 @@ async function loadAllData() {
           cache: isRecentFile(file.date) ? 'no-store' : 'default'
         });
 
-        if (!response.ok) {
-          throw new Error(`status=${response.status}`);
-        }
+        if (!response.ok) throw new Error(`status=${response.status}`);
 
         const json = await response.json();
         const rows = Array.isArray(json.rows) ? json.rows : [];
@@ -131,7 +150,9 @@ async function loadAllData() {
 
     elements.latestUpdatedAt.textContent = manifest.updatedAt || '--';
     elements.historyPeriodRange.textContent = buildPeriodRange();
+    buildDateSelect();
     buildRankingTabs();
+    buildProgramSelect();
 
     elements.loadingPanel.hidden = true;
     elements.appContent.hidden = false;
@@ -272,10 +293,76 @@ function buildRankingTabs() {
     button.setAttribute('aria-selected', String(type === state.rankingType));
     button.addEventListener('click', () => {
       state.rankingType = type;
+      buildProgramSelect();
       render();
     });
     elements.rankingTabs.appendChild(button);
   });
+}
+
+function buildDateSelect() {
+  const dateKeys = Array.from(new Set(state.snapshots.map((snapshot) => getDateKey(snapshot.observedAt)))).filter(Boolean).sort();
+  elements.snapshotDateSelect.replaceChildren();
+  dateKeys.forEach((dateKey) => {
+    const option = document.createElement('option');
+    option.value = dateKey;
+    option.textContent = formatDateKeyLabel(dateKey);
+    elements.snapshotDateSelect.appendChild(option);
+  });
+  syncDateSelect();
+}
+
+function moveToDate(dateKey) {
+  let targetIndex = -1;
+  state.snapshots.forEach((snapshot, index) => {
+    if (getDateKey(snapshot.observedAt) === dateKey) targetIndex = index;
+  });
+  if (targetIndex >= 0) {
+    state.snapshotIndex = targetIndex;
+    render();
+  }
+}
+
+function syncDateSelect() {
+  const snapshot = state.snapshots[state.snapshotIndex];
+  if (snapshot) elements.snapshotDateSelect.value = getDateKey(snapshot.observedAt);
+}
+
+function getProgramNames() {
+  return Array.from(new Set(
+    state.rows
+      .filter((row) => String(row.type || '') === state.rankingType)
+      .map((row) => String(row.programTitle || '').trim())
+      .filter(Boolean)
+  )).sort((a, b) => a.localeCompare(b, 'ja'));
+}
+
+function buildProgramSelect() {
+  const programs = getProgramNames().filter((name) => !state.programSearch || normalizeText(name).includes(state.programSearch));
+  const previous = state.selectedProgram;
+  elements.programSelect.replaceChildren();
+
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = programs.length ? '番組を選択してください' : '該当する番組がありません';
+  elements.programSelect.appendChild(placeholder);
+
+  programs.forEach((name) => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    elements.programSelect.appendChild(option);
+  });
+
+  if (previous && programs.includes(previous)) {
+    state.selectedProgram = previous;
+    elements.programSelect.value = previous;
+  } else {
+    state.selectedProgram = '';
+    elements.programSelect.value = '';
+  }
+
+  elements.graphResultText.textContent = `${programs.length}番組`;
 }
 
 function render() {
@@ -283,8 +370,16 @@ function render() {
   updateFilterCards();
   updateRankingTabs();
 
+  const isGraph = state.viewMode === 'graph';
+  elements.rankingSummary.hidden = isGraph;
+  elements.rankingTableSection.hidden = isGraph;
+  elements.graphSection.hidden = !isGraph;
+  if (isGraph) elements.outSection.hidden = true;
+
   if (state.viewMode === 'history') {
     renderHistory();
+  } else if (state.viewMode === 'graph') {
+    renderGraph();
   } else {
     renderSnapshot();
   }
@@ -298,6 +393,7 @@ function updateModeTabs() {
   });
   elements.snapshotModePanel.hidden = state.viewMode !== 'snapshot';
   elements.historyModePanel.hidden = state.viewMode !== 'history';
+  elements.graphModePanel.hidden = state.viewMode !== 'graph';
 }
 
 function renderSnapshot() {
@@ -313,6 +409,7 @@ function renderSnapshot() {
   elements.tableNote.textContent = '前回比は同じランキング種別の直前取得時点と比較します。';
   elements.snapshotSearchResultText.textContent = state.snapshotSearch ? `${searchedItems.length}件表示` : '';
 
+  syncDateSelect();
   updateNavigation();
   renderResultSet(searchedItems, searchedOut, false);
 }
@@ -339,6 +436,142 @@ function renderHistory() {
   elements.historySearchResultText.textContent = query ? `${ranked.length + out.length}件の履歴が見つかりました` : '番組名またはエピソード名を入力してください。';
 
   renderResultSet(ranked, out, true);
+}
+
+function renderGraph() {
+  if (state.viewMode !== 'graph') return;
+
+  const programName = state.selectedProgram;
+  elements.graphRankingTypeLabel.textContent = getRankingLabel(state.rankingType);
+  elements.graphTitle.textContent = programName || '番組別順位推移';
+  elements.graphLegend.replaceChildren();
+  elements.programChart.replaceChildren();
+
+  if (!programName) {
+    elements.programChart.hidden = true;
+    elements.emptyGraphMessage.hidden = false;
+    elements.emptyGraphMessage.textContent = '番組を選択してください。';
+    return;
+  }
+
+  const seriesMap = new Map();
+  state.rows
+    .filter((row) => String(row.type || '') === state.rankingType && String(row.programTitle || '') === programName)
+    .forEach((row) => {
+      const episodeId = String(row.episodeId || '').trim();
+      if (!episodeId) return;
+      if (!seriesMap.has(episodeId)) {
+        seriesMap.set(episodeId, {
+          episodeId,
+          episodeTitle: String(row.episodeTitle || '') || episodeId,
+          points: []
+        });
+      }
+      seriesMap.get(episodeId).points.push({
+        observedAt: String(row.observedAt || ''),
+        rank: Number(row.rank)
+      });
+    });
+
+  const series = Array.from(seriesMap.values())
+    .map((item) => ({
+      ...item,
+      points: item.points
+        .filter((point) => point.observedAt && Number.isFinite(point.rank))
+        .sort((a, b) => parseDateValue(a.observedAt) - parseDateValue(b.observedAt))
+    }))
+    .filter((item) => item.points.length)
+    .sort((a, b) => parseDateValue(a.points[0].observedAt) - parseDateValue(b.points[0].observedAt));
+
+  if (!series.length) {
+    elements.programChart.hidden = true;
+    elements.emptyGraphMessage.hidden = false;
+    elements.emptyGraphMessage.textContent = 'この番組のランキング履歴はありません。';
+    return;
+  }
+
+  elements.programChart.hidden = false;
+  elements.emptyGraphMessage.hidden = true;
+  drawProgramChart(series);
+}
+
+function drawProgramChart(series) {
+  const allPoints = series.flatMap((item) => item.points);
+  const minTime = Math.min(...allPoints.map((point) => parseDateValue(point.observedAt)));
+  const maxTime = Math.max(...allPoints.map((point) => parseDateValue(point.observedAt)));
+  const maxRank = Math.max(50, ...allPoints.map((point) => point.rank));
+
+  const width = Math.max(920, Math.min(2200, 920 + Math.max(0, allPoints.length - 50) * 4));
+  const height = 560;
+  const margin = { top: 28, right: 28, bottom: 72, left: 62 };
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
+
+  elements.programChart.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  elements.programChart.setAttribute('width', String(width));
+  elements.programChart.setAttribute('height', String(height));
+
+  const x = (time) => margin.left + (maxTime === minTime ? innerWidth / 2 : ((time - minTime) / (maxTime - minTime)) * innerWidth);
+  const y = (rank) => margin.top + ((rank - 1) / Math.max(1, maxRank - 1)) * innerHeight;
+
+  [1,10,20,30,40,50].filter((rank) => rank <= maxRank).forEach((rank) => {
+    appendSvg('line', { x1: margin.left, y1: y(rank), x2: width - margin.right, y2: y(rank), class: 'chart-grid-line' });
+    appendSvg('text', { x: margin.left - 10, y: y(rank) + 4, class: 'chart-axis-label', 'text-anchor': 'end' }, `${rank}位`);
+  });
+
+  const tickCount = 6;
+  for (let index = 0; index < tickCount; index += 1) {
+    const ratio = tickCount === 1 ? 0 : index / (tickCount - 1);
+    const time = minTime + (maxTime - minTime) * ratio;
+    const xValue = x(time);
+    appendSvg('line', { x1: xValue, y1: margin.top, x2: xValue, y2: height - margin.bottom, class: 'chart-grid-line vertical' });
+    appendSvg('text', { x: xValue, y: height - margin.bottom + 24, class: 'chart-axis-label', 'text-anchor': 'middle' }, formatChartDate(time));
+  }
+
+  series.forEach((item, index) => {
+    const color = CHART_COLORS[index % CHART_COLORS.length];
+    const points = item.points.map((point) => `${x(parseDateValue(point.observedAt))},${y(point.rank)}`).join(' ');
+
+    appendSvg('polyline', {
+      points,
+      fill: 'none',
+      stroke: color,
+      'stroke-width': 3,
+      'stroke-linejoin': 'round',
+      'stroke-linecap': 'round'
+    });
+
+    item.points.forEach((point) => {
+      const circle = appendSvg('circle', {
+        cx: x(parseDateValue(point.observedAt)),
+        cy: y(point.rank),
+        r: 4.5,
+        fill: color,
+        class: 'chart-point'
+      });
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `${item.episodeTitle}\n${point.observedAt}\n${point.rank}位`;
+      circle.appendChild(title);
+    });
+
+    const legend = document.createElement('div');
+    legend.className = 'legend-item';
+    const swatch = document.createElement('span');
+    swatch.className = 'legend-swatch';
+    swatch.style.background = color;
+    const text = document.createElement('span');
+    text.textContent = item.episodeTitle;
+    legend.append(swatch, text);
+    elements.graphLegend.appendChild(legend);
+  });
+}
+
+function appendSvg(tagName, attributes, textContent = '') {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tagName);
+  Object.entries(attributes).forEach(([name, value]) => node.setAttribute(name, String(value)));
+  if (textContent) node.textContent = textContent;
+  elements.programChart.appendChild(node);
+  return node;
 }
 
 function renderResultSet(items, outItems, isHistory) {
@@ -392,7 +625,7 @@ function renderTable(items, isHistory) {
 
 function renderOut(items, isHistory) {
   elements.outList.replaceChildren();
-  elements.outSection.hidden = items.length === 0;
+  elements.outSection.hidden = items.length === 0 || state.viewMode === 'graph';
   items.forEach((item) => {
     const article = document.createElement('article');
     article.className = 'out-item';
@@ -400,9 +633,13 @@ function renderOut(items, isHistory) {
     badge.className = 'out-badge';
     badge.textContent = 'OUT';
     const titles = document.createElement('div');
-    titles.innerHTML = `<span class="program-title"></span><span class="episode-title"></span>`;
-    titles.children[0].textContent = item.programTitle || '番組名なし';
-    titles.children[1].textContent = item.episodeTitle || 'エピソード名なし';
+    const program = document.createElement('span');
+    program.className = 'program-title';
+    program.textContent = item.programTitle || '番組名なし';
+    const episode = document.createElement('span');
+    episode.className = 'episode-title';
+    episode.textContent = item.episodeTitle || 'エピソード名なし';
+    titles.append(program, episode);
     const detail = document.createElement('span');
     detail.textContent = `${isHistory ? `${item.observedAt}・` : ''}前回 ${item.previousRank || '-'}位`;
     article.append(badge, titles, detail);
@@ -462,6 +699,20 @@ function normalizeText(value) {
 function parseDateValue(value) {
   const time = new Date(String(value || '').replace(/\//g, '-').replace(' ', 'T')).getTime();
   return Number.isFinite(time) ? time : 0;
+}
+
+function getDateKey(value) {
+  const match = String(value || '').match(/^(\d{4})\/(\d{2})\/(\d{2})/);
+  return match ? `${match[1]}${match[2]}${match[3]}` : '';
+}
+
+function formatDateKeyLabel(dateKey) {
+  return /^\d{8}$/.test(dateKey) ? `${dateKey.slice(0, 4)}/${dateKey.slice(4, 6)}/${dateKey.slice(6, 8)}` : dateKey;
+}
+
+function formatChartDate(time) {
+  const date = new Date(time);
+  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:00`;
 }
 
 function buildPeriodRange() {
