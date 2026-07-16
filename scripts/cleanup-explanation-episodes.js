@@ -12,4 +12,36 @@ let changedFiles = 0;
 
 for (const file of manifest.files || []) {
   const filePath = path.join(DATA_DIR, file.path);
-  const
+
+  if (!fs.existsSync(filePath)) {
+    console.warn(`skip missing file: ${file.path}`);
+    continue;
+  }
+
+  const json = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  const rows = Array.isArray(json.rows) ? json.rows : [];
+  const filtered = rows.filter((row) => {
+    return !String(row && row.episodeTitle || '').includes(TARGET);
+  });
+
+  const removed = rows.length - filtered.length;
+
+  if (removed > 0) {
+    json.rows = filtered;
+    fs.writeFileSync(filePath, JSON.stringify(json), 'utf8');
+    removedTotal += removed;
+    changedFiles += 1;
+    console.log(`${file.path}: removed ${removed}`);
+  }
+
+  file.rowCount = filtered.length;
+}
+
+manifest.generatedAt = new Date().toISOString();
+fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest), 'utf8');
+
+console.log(JSON.stringify({
+  target: TARGET,
+  changedFiles,
+  removedTotal
+}, null, 2));
