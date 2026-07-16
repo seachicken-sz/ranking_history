@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#ffffff">
   <title>TVer 番組別アーカイブ</title>
   <link rel="stylesheet" href="./css/style.css">
+  <link rel="stylesheet" href="./css/archive-adjustments.css">
 </head>
 <body>
   <main class="page-shell">
@@ -28,11 +29,11 @@
       <section class="panel controls-panel">
         <div class="control-grid">
           <label>
-            <span>番組</span>
+            <span>番組名</span>
             <select id="programSelect"></select>
           </label>
           <label>
-            <span>話数</span>
+            <span>話名</span>
             <select id="episodeSelect"></select>
           </label>
         </div>
@@ -49,12 +50,15 @@
             <div><p class="eyebrow">FAVORITES</p><h2>お気に入り推移</h2></div>
           </div>
           <div class="chart-scroll"><svg id="favoriteChart" class="chart"></svg></div>
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>取得日時</th><th>お気に入り</th><th>前回差</th><th>イベント</th></tr></thead>
-              <tbody id="favoriteTableBody"></tbody>
-            </table>
-          </div>
+          <details class="table-details">
+            <summary>お気に入り履歴表を表示</summary>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>取得日時</th><th>お気に入り</th><th>前回差</th><th>イベント</th></tr></thead>
+                <tbody id="favoriteTableBody"></tbody>
+              </table>
+            </div>
+          </details>
         </section>
 
         <section class="panel chart-card">
@@ -68,7 +72,19 @@
 
         <section class="panel summary-section">
           <div class="section-heading"><div><p class="eyebrow">EPISODES</p><h2>各話サマリー</h2></div></div>
-          <div id="episodeSummaryList" class="episode-summary-list"></div>
+          <div class="table-scroll">
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th>話名</th>
+                  <th>いいね数</th>
+                  <th>最高順位</th>
+                  <th>初回ランク入り順位</th>
+                </tr>
+              </thead>
+              <tbody id="episodeSummaryList"></tbody>
+            </table>
+          </div>
         </section>
       </div>
 
@@ -87,12 +103,15 @@
         </section>
 
         <section class="panel table-card">
-          <div class="section-heading"><div><p class="eyebrow">HISTORY</p><h2>取得履歴</h2></div></div>
-          <div class="table-scroll"><table id="episodeHistoryTable"><thead id="episodeHistoryHead"></thead><tbody id="episodeHistoryBody"></tbody></table></div>
+          <details class="table-details">
+            <summary>取得履歴表を表示</summary>
+            <div class="table-scroll"><table id="episodeHistoryTable"><thead id="episodeHistoryHead"></thead><tbody id="episodeHistoryBody"></tbody></table></div>
+          </details>
         </section>
       </div>
     </section>
   </main>
   <script src="./js/script.js" defer></script>
+  <script src="./js/archive-adjustments.js" defer></script>
 </body>
 </html>
