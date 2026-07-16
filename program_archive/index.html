@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ffffff">
+  <title>TVer 番組別アーカイブ</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">TVer PROGRAM ARCHIVE</p>
+        <h1>番組別アーカイブ</h1>
+        <p class="page-description">お気に入り・いいね・ランキングの記録を番組別、話数別に確認できます。</p>
+      </div>
+      <a class="back-link" href="../">ランキング履歴へ</a>
+    </header>
+
+    <section id="loadingPanel" class="panel loading-panel">
+      <div class="spinner"></div>
+      <strong id="loadingTitle">データを読み込んでいます</strong>
+      <span id="loadingDetail">manifestを確認しています</span>
+    </section>
+
+    <section id="appContent" hidden>
+      <section class="panel controls-panel">
+        <div class="control-grid">
+          <label>
+            <span>番組</span>
+            <select id="programSelect"></select>
+          </label>
+          <label>
+            <span>話数</span>
+            <select id="episodeSelect"></select>
+          </label>
+        </div>
+        <p id="archiveUpdatedAt" class="updated-text"></p>
+      </section>
+
+      <section id="emptyPanel" class="panel empty-panel" hidden>
+        いいね・お気に入り履歴がまだありません。
+      </section>
+
+      <div id="programView" hidden>
+        <section class="panel chart-card">
+          <div class="section-heading">
+            <div><p class="eyebrow">FAVORITES</p><h2>お気に入り推移</h2></div>
+          </div>
+          <div class="chart-scroll"><svg id="favoriteChart" class="chart"></svg></div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>取得日時</th><th>お気に入り</th><th>前回差</th><th>イベント</th></tr></thead>
+              <tbody id="favoriteTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel chart-card">
+          <div class="section-heading">
+            <div><p class="eyebrow">LIKES</p><h2>話数別いいね推移</h2></div>
+            <div class="legend-actions"><button id="showAllSeriesButton" type="button">すべて表示</button><button id="hideAllSeriesButton" type="button">すべて非表示</button></div>
+          </div>
+          <div id="likeLegend" class="series-toggle-list"></div>
+          <div class="chart-scroll"><svg id="likeCompareChart" class="chart"></svg></div>
+        </section>
+
+        <section class="panel summary-section">
+          <div class="section-heading"><div><p class="eyebrow">EPISODES</p><h2>各話サマリー</h2></div></div>
+          <div id="episodeSummaryList" class="episode-summary-list"></div>
+        </section>
+      </div>
+
+      <div id="episodeView" hidden>
+        <section class="panel episode-header-card">
+          <p class="eyebrow">EPISODE</p>
+          <h2 id="episodeTitle">--</h2>
+          <p id="episodeMeta" class="episode-meta"></p>
+        </section>
+
+        <div id="rankingCharts"></div>
+
+        <section class="panel chart-card">
+          <div class="section-heading"><div><p class="eyebrow">LIKES</p><h2>いいね推移</h2></div></div>
+          <div class="chart-scroll"><svg id="episodeLikeChart" class="chart"></svg></div>
+        </section>
+
+        <section class="panel table-card">
+          <div class="section-heading"><div><p class="eyebrow">HISTORY</p><h2>取得履歴</h2></div></div>
+          <div class="table-scroll"><table id="episodeHistoryTable"><thead id="episodeHistoryHead"></thead><tbody id="episodeHistoryBody"></tbody></table></div>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script src="./js/script.js" defer></script>
+</body>
+</html>
