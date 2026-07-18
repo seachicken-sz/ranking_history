@@ -1,6 +1,8 @@
 'use strict';
 
 document.addEventListener('DOMContentLoaded', () => {
+  let historyCandidatesCache = null;
+
   const configs = [
     {
       inputId: 'snapshotSearchInput',
@@ -62,11 +64,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderDropdown() {
       const query = normalizeText(input.value);
-      const candidates = config.getCandidates()
-        .filter((item) => {
-          if (!query) return true;
-          return normalizeText(`${item.programTitle} ${item.episodeTitle || ''}`).includes(query);
-        });
+      const candidates = config.getCandidates().filter((item) => {
+        if (!query) return true;
+        return normalizeText(`${item.programTitle} ${item.episodeTitle || ''}`).includes(query);
+      });
 
       const programs = candidates.filter((item) => item.kind === 'program').slice(0, 30);
       const episodes = candidates.filter((item) => item.kind === 'episode').slice(0, 50);
@@ -169,7 +170,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function getHistoryCandidates() {
     if (typeof state === 'undefined') return [];
-    return buildCandidates(state.rows || []);
+    if (!historyCandidatesCache) {
+      historyCandidatesCache = buildCandidates(state.rows || []);
+    }
+    return historyCandidatesCache;
   }
 
   function buildCandidates(items) {
