@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const file = new File([blob], makeFileName(), { type: 'image/png' });
       const shareData = {
         title: String(graphTitle?.textContent || 'TVerランキング推移'),
-        text: `${String(graphTitle?.textContent || '')} ${String(graphRankingTypeLabel?.textContent || '')}ランキングの順位推移`,
+        text: `${String(graphTitle?.textContent || '')} ${String(graphRankingTypeLabel?.textContent || '')}ランキンググラフ`,
         files: [file]
       };
 
