@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="./css/style.css">
   <link rel="stylesheet" href="./css/refresh.css">
   <link rel="stylesheet" href="./css/ranking-tab-highlights.css">
+  <link rel="stylesheet" href="./css/search-combobox.css">
 </head>
 <body>
   <main class="page-shell">
@@ -48,7 +49,7 @@
           </div>
           <div class="search-panel">
             <label for="snapshotSearchInput">表示中の番組名・エピソード名で絞り込み</label>
-            <div class="search-row"><input id="snapshotSearchInput" type="search" placeholder="現在の取得時点から検索"><button id="clearSnapshotSearchButton" type="button" disabled>クリア</button></div>
+            <div class="search-row"><input id="snapshotSearchInput" type="search" placeholder="番組名・エピソード名を検索"><button id="clearSnapshotSearchButton" type="button" disabled>クリア</button></div>
             <p id="snapshotSearchResultText" class="search-result"></p>
           </div>
         </div>
@@ -56,7 +57,7 @@
           <div class="period-card"><span>検索対象期間</span><strong id="historyPeriodRange">--</strong></div>
           <div class="search-panel no-border">
             <label for="historySearchInput">番組名・エピソード名で全期間検索</label>
-            <div class="search-row"><input id="historySearchInput" type="search" placeholder="全取得時点から検索"><button id="clearHistorySearchButton" type="button" disabled>クリア</button></div>
+            <div class="search-row"><input id="historySearchInput" type="search" placeholder="番組名・エピソード名を検索"><button id="clearHistorySearchButton" type="button" disabled>クリア</button></div>
             <p id="historySearchResultText" class="search-result">番組名またはエピソード名を入力してください。</p>
           </div>
         </div>
@@ -97,5 +98,6 @@
   <script src="./js/script.js" defer></script>
   <script src="./js/refresh.js" defer></script>
   <script src="./js/ranking-tab-highlights.js" defer></script>
+  <script src="./js/search-combobox.js" defer></script>
 </body>
 </html>
