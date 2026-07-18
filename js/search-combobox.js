@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ];
 
   configs.forEach(setupCombobox);
+  setupGraphCombobox();
 
   function setupCombobox(config) {
     const input = document.getElementById(config.inputId);
@@ -82,50 +83,154 @@ document.addEventListener('DOMContentLoaded', () => {
         empty.textContent = '該当する候補がありません';
         dropdown.appendChild(empty);
       } else {
-        appendGroup('番組', programs);
-        appendGroup('エピソード', episodes);
+        appendGroup(dropdown, optionButtons, '番組', programs, selectCandidate);
+        appendGroup(dropdown, optionButtons, 'エピソード', episodes, selectCandidate);
       }
 
       dropdown.hidden = false;
       input.setAttribute('aria-expanded', 'true');
     }
 
-    function appendGroup(label, items) {
-      if (!items.length) return;
+    bindComboboxEvents({
+      input,
+      clearButton,
+      dropdown,
+      container: row,
+      renderDropdown,
+      closeDropdown,
+      getOptionButtons: () => optionButtons,
+      getHighlightedIndex: () => highlightedIndex,
+      setHighlightedIndex: (value) => { highlightedIndex = value; }
+    });
+  }
 
-      const groupLabel = document.createElement('div');
-      groupLabel.className = 'search-combobox-group-label';
-      groupLabel.textContent = label;
-      dropdown.appendChild(groupLabel);
+  function setupGraphCombobox() {
+    const input = document.getElementById('programSearchInput');
+    const select = document.getElementById('programSelect');
+    if (!input || !select) return;
 
-      items.forEach((candidate) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'search-combobox-option';
-        button.setAttribute('role', 'option');
+    const control = input.closest('.graph-control');
+    const selectControl = select.closest('.graph-control');
+    const controls = input.closest('.graph-controls');
+    if (!control || !selectControl || !controls) return;
 
-        const main = document.createElement('span');
-        main.className = 'search-combobox-option-main';
-        main.textContent = candidate.kind === 'program' ? candidate.programTitle : candidate.episodeTitle;
-        button.appendChild(main);
+    controls.classList.add('graph-controls-combobox');
+    control.classList.add('graph-search-combobox');
+    selectControl.classList.add('graph-select-control-hidden');
 
-        if (candidate.kind === 'episode') {
-          const sub = document.createElement('span');
-          sub.className = 'search-combobox-option-sub';
-          sub.textContent = candidate.programTitle;
-          button.appendChild(sub);
-        }
+    const clearButton = document.createElement('button');
+    clearButton.type = 'button';
+    clearButton.className = 'search-combobox-clear graph-combobox-clear';
+    clearButton.textContent = '×';
+    clearButton.setAttribute('aria-label', '番組選択をクリア');
+    clearButton.disabled = true;
+    control.appendChild(clearButton);
 
-        button.addEventListener('mousedown', (event) => event.preventDefault());
-        button.addEventListener('click', () => selectCandidate(candidate));
-        dropdown.appendChild(button);
-        optionButtons.push(button);
-      });
+    const dropdown = document.createElement('div');
+    dropdown.className = 'search-combobox-dropdown';
+    dropdown.hidden = true;
+    dropdown.setAttribute('role', 'listbox');
+    control.appendChild(dropdown);
+
+    input.placeholder = '番組名を入力して選択';
+    input.setAttribute('autocomplete', 'off');
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-expanded', 'false');
+
+    let highlightedIndex = -1;
+    let optionButtons = [];
+
+    function closeDropdown() {
+      dropdown.hidden = true;
+      input.setAttribute('aria-expanded', 'false');
+      highlightedIndex = -1;
+      optionButtons = [];
     }
 
+    function selectProgram(candidate) {
+      input.value = candidate.programTitle;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+
+      select.value = candidate.programTitle;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+
+      clearButton.disabled = false;
+      closeDropdown();
+    }
+
+    function getGraphCandidates() {
+      if (typeof state === 'undefined') return [];
+      const type = String(state.rankingType || '');
+      const names = Array.from(new Set(
+        (state.rows || [])
+          .filter((row) => String(row.type || '') === type)
+          .map((row) => String(row.programTitle || '').trim())
+          .filter(Boolean)
+      )).sort((a, b) => a.localeCompare(b, 'ja'));
+
+      return names.map((programTitle) => ({ kind: 'program', programTitle, episodeTitle: '' }));
+    }
+
+    function renderDropdown() {
+      const query = normalizeText(input.value);
+      const programs = getGraphCandidates()
+        .filter((item) => !query || normalizeText(item.programTitle).includes(query))
+        .slice(0, 50);
+
+      dropdown.replaceChildren();
+      optionButtons = [];
+      highlightedIndex = -1;
+
+      if (!programs.length) {
+        const empty = document.createElement('div');
+        empty.className = 'search-combobox-empty';
+        empty.textContent = '該当する番組がありません';
+        dropdown.appendChild(empty);
+      } else {
+        appendGroup(dropdown, optionButtons, '番組', programs, selectProgram);
+      }
+
+      dropdown.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+    }
+
+    bindComboboxEvents({
+      input,
+      clearButton,
+      dropdown,
+      container: control,
+      renderDropdown,
+      closeDropdown,
+      getOptionButtons: () => optionButtons,
+      getHighlightedIndex: () => highlightedIndex,
+      setHighlightedIndex: (value) => { highlightedIndex = value; }
+    });
+
+    input.addEventListener('input', () => {
+      clearButton.disabled = !input.value;
+    });
+
+    clearButton.addEventListener('click', () => {
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      select.value = '';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      clearButton.disabled = true;
+    });
+
+    select.addEventListener('change', () => {
+      if (select.value && input.value !== select.value) input.value = select.value;
+      clearButton.disabled = !select.value && !input.value;
+    });
+  }
+
+  function bindComboboxEvents({ input, clearButton, dropdown, container, renderDropdown, closeDropdown, getOptionButtons, getHighlightedIndex, setHighlightedIndex }) {
     function updateHighlight(nextIndex) {
+      const optionButtons = getOptionButtons();
       if (!optionButtons.length) return;
-      highlightedIndex = Math.max(0, Math.min(nextIndex, optionButtons.length - 1));
+      const highlightedIndex = Math.max(0, Math.min(nextIndex, optionButtons.length - 1));
+      setHighlightedIndex(highlightedIndex);
       optionButtons.forEach((button, index) => {
         button.classList.toggle('is-highlighted', index === highlightedIndex);
       });
@@ -135,6 +240,9 @@ document.addEventListener('DOMContentLoaded', () => {
     input.addEventListener('focus', renderDropdown);
     input.addEventListener('input', renderDropdown);
     input.addEventListener('keydown', (event) => {
+      const highlightedIndex = getHighlightedIndex();
+      const optionButtons = getOptionButtons();
+
       if (event.key === 'ArrowDown') {
         event.preventDefault();
         if (dropdown.hidden) renderDropdown();
@@ -156,7 +264,40 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('pointerdown', (event) => {
-      if (!row.contains(event.target)) closeDropdown();
+      if (!container.contains(event.target)) closeDropdown();
+    });
+  }
+
+  function appendGroup(dropdown, optionButtons, label, items, onSelect) {
+    if (!items.length) return;
+
+    const groupLabel = document.createElement('div');
+    groupLabel.className = 'search-combobox-group-label';
+    groupLabel.textContent = label;
+    dropdown.appendChild(groupLabel);
+
+    items.forEach((candidate) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'search-combobox-option';
+      button.setAttribute('role', 'option');
+
+      const main = document.createElement('span');
+      main.className = 'search-combobox-option-main';
+      main.textContent = candidate.kind === 'program' ? candidate.programTitle : candidate.episodeTitle;
+      button.appendChild(main);
+
+      if (candidate.kind === 'episode') {
+        const sub = document.createElement('span');
+        sub.className = 'search-combobox-option-sub';
+        sub.textContent = candidate.programTitle;
+        button.appendChild(sub);
+      }
+
+      button.addEventListener('mousedown', (event) => event.preventDefault());
+      button.addEventListener('click', () => onSelect(candidate));
+      dropdown.appendChild(button);
+      optionButtons.push(button);
     });
   }
 
