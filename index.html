@@ -7,4 +7,92 @@
   <title>TVerランキング 全期間推移</title>
   <link rel="stylesheet" href="./css/style.css">
   <link rel="stylesheet" href="./css/refresh.css">
-  <link rel="stylesheet" href="./css/program
+</head>
+<body>
+  <main class="page-shell">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">TVer RANKING HISTORY</p>
+        <h1>TVerランキング 全期間推移</h1>
+        <p class="page-description">1時間ごとの順位、全期間検索、番組ごとの順位グラフを確認できます。</p>
+      </div>
+      <div class="updated-card updated-card-with-action">
+        <div class="updated-card-text"><span>最新更新</span><strong id="latestUpdatedAt">--</strong></div>
+        <button id="refreshLatestButton" class="refresh-latest-button" type="button" disabled aria-label="最新データを再読み込み">
+          <span class="refresh-icon" aria-hidden="true">↻</span>
+          <span id="refreshLatestButtonText">更新</span>
+        </button>
+        <small id="refreshLatestStatus" class="refresh-latest-status" aria-live="polite"></small>
+      </div>
+    </header>
+    <section id="loadingPanel" class="loading-panel" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <strong id="loadingTitle">ランキング履歴を読み込んでいます</strong>
+      <span id="loadingProgress">manifestを確認しています</span>
+      <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+    </section>
+    <section id="appContent" hidden>
+      <section class="control-panel">
+        <div class="view-mode-tabs" role="tablist" aria-label="表示モード">
+          <button class="view-mode-tab is-active" type="button" data-view-mode="snapshot" aria-selected="true">1時間ごと表示</button>
+          <button class="view-mode-tab" type="button" data-view-mode="history" aria-selected="false">全期間検索</button>
+          <button class="view-mode-tab" type="button" data-view-mode="graph" aria-selected="false">番組グラフ</button>
+        </div>
+        <div id="snapshotModePanel">
+          <div class="date-select-panel"><label for="snapshotDateSelect">表示日</label><select id="snapshotDateSelect"></select></div>
+          <div class="time-navigation">
+            <button id="previousSnapshotButton" class="nav-button" type="button">← 前の取得時点</button>
+            <div class="current-time-block"><span>表示中</span><strong id="currentObservedAt">--</strong><small id="snapshotPosition"></small></div>
+            <button id="nextSnapshotButton" class="nav-button" type="button">次の取得時点 →</button>
+          </div>
+          <div class="search-panel">
+            <label for="snapshotSearchInput">表示中の番組名・エピソード名で絞り込み</label>
+            <div class="search-row"><input id="snapshotSearchInput" type="search" placeholder="現在の取得時点から検索"><button id="clearSnapshotSearchButton" type="button" disabled>クリア</button></div>
+            <p id="snapshotSearchResultText" class="search-result"></p>
+          </div>
+        </div>
+        <div id="historyModePanel" hidden>
+          <div class="period-card"><span>検索対象期間</span><strong id="historyPeriodRange">--</strong></div>
+          <div class="search-panel no-border">
+            <label for="historySearchInput">番組名・エピソード名で全期間検索</label>
+            <div class="search-row"><input id="historySearchInput" type="search" placeholder="全取得時点から検索"><button id="clearHistorySearchButton" type="button" disabled>クリア</button></div>
+            <p id="historySearchResultText" class="search-result">番組名またはエピソード名を入力してください。</p>
+          </div>
+        </div>
+        <div id="graphModePanel" hidden>
+          <div class="graph-controls">
+            <div class="graph-control"><label for="programSearchInput">番組名で絞り込み</label><input id="programSearchInput" type="search" placeholder="番組名を入力"></div>
+            <div class="graph-control"><label for="programSelect">番組を選択</label><select id="programSelect"></select></div>
+          </div>
+          <p id="graphResultText" class="search-result"></p>
+        </div>
+        <div id="rankingTabs" class="ranking-tabs" role="tablist" aria-label="ランキング種別"></div>
+      </section>
+      <section id="warningMessage" class="warning-message" hidden></section>
+      <section id="rankingSummary" class="summary-grid">
+        <button class="summary-card is-active" type="button" data-filter="all"><span>ランクイン</span><strong id="rankedCount">0</strong><small>件</small></button>
+        <button class="summary-card" type="button" data-filter="up"><span>順位アップ</span><strong id="upCount">0</strong><small>件</small></button>
+        <button class="summary-card" type="button" data-filter="new"><span>新規ランクイン</span><strong id="newCount">0</strong><small>件</small></button>
+        <button class="summary-card" type="button" data-filter="out"><span>今回圏外</span><strong id="outCount">0</strong><small>件</small></button>
+      </section>
+      <section id="rankingTableSection" class="table-card">
+        <div class="section-heading"><div><p id="rankingTypeLabel" class="eyebrow">ランキング</p><h2 id="rankingTableTitle">順位表</h2></div><p id="tableNote">前回比は同じランキング種別の直前取得時点と比較します。</p></div>
+        <div class="table-scroll"><table><thead><tr><th>順位</th><th>前回比</th><th>番組・エピソード</th><th>放送局</th><th>全期間最高</th><th id="historyTimeHeader">初登場時刻</th></tr></thead><tbody id="rankingTableBody"></tbody></table></div>
+        <div id="emptyRankingMessage" class="empty-message" hidden></div>
+      </section>
+      <section id="graphSection" class="graph-card" hidden>
+        <div class="section-heading"><div><p id="graphRankingTypeLabel" class="eyebrow">ランキング</p><h2 id="graphTitle">番組別順位推移</h2></div><p>上にあるほど順位が高く、系列はエピソードごとです。</p></div>
+        <div id="graphLegend" class="graph-legend"></div>
+        <div class="chart-scroll"><svg id="programChart" class="program-chart" role="img" aria-label="番組別順位推移グラフ"></svg></div>
+        <div id="emptyGraphMessage" class="empty-message" hidden>番組を選択してください。</div>
+      </section>
+      <section id="outSection" class="out-section" hidden>
+        <div class="section-heading"><div><p class="eyebrow">OUT</p><h2>今回圏外になったエピソード</h2></div></div>
+        <div id="outList" class="out-list"></div>
+      </section>
+    </section>
+  </main>
+  <script src="./js/script.js" defer></script>
+  <script src="./js/refresh.js" defer></script>
+</body>
+</html>
