@@ -8,21 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const programSelect = document.getElementById('programSelect');
   const viewModeTabs = Array.from(document.querySelectorAll('[data-view-mode]'));
 
-  function getHistoryMatchCounts(query) {
-    const counts = new Map(getRankingTypes().map((type) => [type, 0]));
-    if (!query) return counts;
-
-    state.snapshots.forEach((snapshot) => {
-      Object.entries(snapshot.types || {}).forEach(([type, group]) => {
-        const rankedCount = filterByQuery(group.items, query).length;
-        const outCount = filterByQuery(group.out, query).length;
-        counts.set(type, (counts.get(type) || 0) + rankedCount + outCount);
-      });
-    });
-
-    return counts;
-  }
-
   function getProgramRankingTypes(programName) {
     if (!programName) return new Set();
 
@@ -34,9 +19,11 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   }
 
-  function resetTabHighlight(button) {
-    button.classList.remove('has-search-result', 'has-graph-history');
+  function resetTabState(button) {
+    button.classList.remove('has-search-result', 'has-graph-history', 'is-unavailable');
     button.querySelector('.ranking-tab-count')?.remove();
+    button.disabled = false;
+    button.removeAttribute('aria-disabled');
   }
 
   function appendCountBadge(button, count) {
@@ -47,32 +34,74 @@ document.addEventListener('DOMContentLoaded', () => {
     button.appendChild(badge);
   }
 
+  function getHistoryMatchCounts(programName) {
+    const counts = new Map(getRankingTypes().map((type) => [type, 0]));
+    if (!programName) return counts;
+
+    state.snapshots.forEach((snapshot) => {
+      Object.entries(snapshot.types || {}).forEach(([type, group]) => {
+        const rankedCount = (group.items || []).filter((item) => String(item.programTitle || '') === programName).length;
+        const outCount = (group.out || []).filter((item) => String(item.programTitle || '') === programName).length;
+        counts.set(type, (counts.get(type) || 0) + rankedCount + outCount);
+      });
+    });
+
+    return counts;
+  }
+
+  function setUnavailable(button, unavailable) {
+    button.disabled = unavailable;
+    button.classList.toggle('is-unavailable', unavailable);
+    if (unavailable) button.setAttribute('aria-disabled', 'true');
+    else button.removeAttribute('aria-disabled');
+  }
+
+  function switchToFirstAvailable(buttons) {
+    const current = buttons.find((button) => button.dataset.rankingType === state.rankingType);
+    if (current && !current.disabled) return false;
+
+    const firstAvailable = buttons.find((button) => !button.disabled);
+    if (!firstAvailable) return false;
+
+    state.rankingType = firstAvailable.dataset.rankingType || '';
+    buildProgramSelect();
+    render();
+    return true;
+  }
+
   function updateRankingTabHighlights() {
     if (!rankingTabs || typeof state === 'undefined') return;
 
     const buttons = Array.from(rankingTabs.querySelectorAll('.ranking-tab'));
     if (!buttons.length) return;
 
-    buttons.forEach(resetTabHighlight);
+    buttons.forEach(resetTabState);
 
     if (state.viewMode === 'history' && state.historySearch) {
       const counts = getHistoryMatchCounts(state.historySearch);
       buttons.forEach((button) => {
         const count = counts.get(button.dataset.rankingType) || 0;
-        if (count <= 0) return;
-        button.classList.add('has-search-result');
-        appendCountBadge(button, count);
+        if (count > 0) {
+          button.classList.add('has-search-result');
+          appendCountBadge(button, count);
+        } else {
+          setUnavailable(button, true);
+        }
       });
+
+      if (switchToFirstAvailable(buttons)) return;
       return;
     }
 
     if (state.viewMode === 'graph' && state.selectedProgram) {
       const rankingTypes = getProgramRankingTypes(state.selectedProgram);
       buttons.forEach((button) => {
-        if (rankingTypes.has(button.dataset.rankingType)) {
-          button.classList.add('has-graph-history');
-        }
+        const available = rankingTypes.has(button.dataset.rankingType);
+        if (available) button.classList.add('has-graph-history');
+        else setUnavailable(button, true);
       });
+
+      if (switchToFirstAvailable(buttons)) return;
     }
   }
 
