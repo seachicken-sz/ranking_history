@@ -45,24 +45,26 @@ document.addEventListener('DOMContentLoaded', () => {
     return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
   }
 
+  function getRoundedHours(ms) {
+    if (!Number.isFinite(ms) || ms <= 0) return 0;
+    return Math.round(ms / (60 * 60 * 1000));
+  }
+
   function formatDuration(ms) {
-    if (!Number.isFinite(ms) || ms <= 0) return '0時間';
-    const totalMinutes = Math.round(ms / 60000);
-    const days = Math.floor(totalMinutes / 1440);
-    const hours = Math.floor((totalMinutes % 1440) / 60);
-    const minutes = totalMinutes % 60;
-    const parts = [];
-    if (days) parts.push(`${days}日`);
-    if (hours) parts.push(`${hours}時間`);
-    if (!days && minutes) parts.push(`${minutes}分`);
-    return parts.join('') || '0時間';
+    const totalHours = getRoundedHours(ms);
+    const base = `${totalHours}時間`;
+    if (totalHours <= 24) return base;
+
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    return `${base}（${days}日${hours}時間）`;
   }
 
   function buildSummary() {
     if (typeof state === 'undefined' || !state.selectedProgram || !state.rankingType) return [];
 
     const typeSnapshots = (state.snapshots || [])
-      .map((snapshot, index) => ({ snapshot, index, time: parseDateValue(snapshot.observedAt) }))
+      .map((snapshot) => ({ snapshot, time: parseDateValue(snapshot.observedAt) }))
       .filter(({ snapshot, time }) => snapshot?.types?.[state.rankingType] && time)
       .sort((a, b) => a.time - b.time);
 
@@ -72,19 +74,22 @@ document.addEventListener('DOMContentLoaded', () => {
     for (let index = 0; index < typeSnapshots.length - 1; index += 1) {
       gaps.push(typeSnapshots[index + 1].time - typeSnapshots[index].time);
     }
+
     const normalInterval = median(gaps);
     const maxContinuousGap = normalInterval * 1.5;
     const latestTypeSnapshot = typeSnapshots[typeSnapshots.length - 1];
-
     const episodeMap = new Map();
 
     typeSnapshots.forEach(({ snapshot, time }, snapshotPosition) => {
       const group = snapshot.types[state.rankingType];
-      const matchingItems = (group.items || []).filter((item) => String(item.programTitle || '') === state.selectedProgram);
+      const matchingItems = (group.items || []).filter(
+        (item) => String(item.programTitle || '') === state.selectedProgram
+      );
 
       matchingItems.forEach((item) => {
         const episodeId = String(item.episodeId || '').trim();
         if (!episodeId) return;
+
         if (!episodeMap.has(episodeId)) {
           episodeMap.set(episodeId, {
             episodeId,
@@ -101,11 +106,13 @@ document.addEventListener('DOMContentLoaded', () => {
             isCurrent: false
           });
         }
+
         const episode = episodeMap.get(episodeId);
         episode.bestRank = Math.min(episode.bestRank, Number(item.rank));
         episode.firstTime = Math.min(episode.firstTime, time);
         episode.lastTime = Math.max(episode.lastTime, time);
         episode.presentPositions.add(snapshotPosition);
+
         if (snapshotPosition === typeSnapshots.length - 1) {
           episode.isCurrent = true;
           episode.latestRank = Number(item.rank);
@@ -132,9 +139,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const currentItem = (current.snapshot.types[state.rankingType]?.items || []).find(
-          (item) => String(item.episodeId || '') === episode.episodeId && String(item.programTitle || '') === state.selectedProgram
+          (item) => String(item.episodeId || '') === episode.episodeId
+            && String(item.programTitle || '') === state.selectedProgram
         );
         const rank = Number(currentItem?.rank);
+
         if (!Number.isFinite(rank)) {
           episode.currentRunMs = 0;
           continue;
@@ -153,10 +162,12 @@ document.addEventListener('DOMContentLoaded', () => {
       .map((episode) => ({
         ...episode,
         ranks: Array.from(episode.rankMs.entries())
-          .map(([rank, ms]) => ({ rank, ms, isCurrent: episode.isCurrent && episode.latestRank === rank }))
+          .map(([rank, ms]) => ({
+            rank,
+            ms,
+            isCurrent: episode.isCurrent && episode.latestRank === rank
+          }))
           .sort((a, b) => a.rank - b.rank),
-        normalInterval,
-        maxContinuousGap,
         latestObservedAt: latestTypeSnapshot.snapshot.observedAt
       }))
       .sort((a, b) => b.firstTime - a.firstTime || b.lastTime - a.lastTime);
@@ -198,6 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const title = document.createElement('strong');
       title.textContent = episode.episodeTitle;
       episodeCell.appendChild(title);
+
       if (episode.isCurrent) {
         const current = document.createElement('small');
         current.textContent = `現在ランクイン中（${episode.latestRank}位）`;
@@ -216,12 +228,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const ranksCell = document.createElement('td');
       const ranks = document.createElement('div');
       ranks.className = 'rank-duration-ranks';
+
       episode.ranks.forEach((item) => {
-        const chip = document.createElement('span');
-        chip.className = `rank-duration-chip${item.isCurrent ? ' is-current' : ''}`;
-        chip.textContent = `${item.rank}位 ${formatDuration(item.ms)}${item.isCurrent ? ' 継続中' : ''}`;
-        ranks.appendChild(chip);
+        const line = document.createElement('div');
+        line.className = `rank-duration-rank-line${item.isCurrent ? ' is-current' : ''}`;
+        line.textContent = `${item.rank}位 ${formatDuration(item.ms)}${item.isCurrent ? ' 継続中' : ''}`;
+        ranks.appendChild(line);
       });
+
       if (!episode.ranks.length) ranks.textContent = '-';
       ranksCell.appendChild(ranks);
 
@@ -234,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const chars = Array.from(String(text || ''));
     const lines = [];
     let current = '';
+
     chars.forEach((char) => {
       const next = current + char;
       if (current && ctx.measureText(next).width > maxWidth) {
@@ -243,6 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
         current = next;
       }
     });
+
     if (current) lines.push(current);
     return lines;
   }
@@ -252,41 +268,60 @@ document.addEventListener('DOMContentLoaded', () => {
     const side = 56;
     const titleHeight = 170;
     const episodeGap = 24;
-    const episodeBlocks = currentSummary.map((episode) => {
-      const rankText = episode.ranks.map((item) => `${item.rank}位 ${formatDuration(item.ms)}${item.isCurrent ? ' 継続中' : ''}`).join(' / ');
-      return { episode, rankText };
-    });
+
+    const episodeBlocks = currentSummary.map((episode) => ({
+      episode,
+      rankLines: episode.ranks.length
+        ? episode.ranks.map((item) => `${item.rank}位 ${formatDuration(item.ms)}${item.isCurrent ? ' 継続中' : ''}`)
+        : ['-']
+    }));
 
     const measureCanvas = document.createElement('canvas');
     const measureCtx = measureCanvas.getContext('2d');
-    measureCtx.font = '600 22px Arial, sans-serif';
-    const maxTextWidth = width - side * 2 - 36;
-    const blockHeights = episodeBlocks.map(({ rankText }) => {
-      const rankLines = Math.max(1, wrapText(measureCtx, rankText || '-', maxTextWidth).length);
-      return 178 + rankLines * 32;
+    measureCtx.font = '700 25px Arial, sans-serif';
+    const titleMaxWidth = width - side * 2 - 36;
+
+    const blockHeights = episodeBlocks.map(({ episode, rankLines }) => {
+      const episodeTitleLines = Math.min(2, Math.max(1, wrapText(measureCtx, episode.episodeTitle, titleMaxWidth).length));
+      return 166 + episodeTitleLines * 31 + rankLines.length * 32;
     });
-    const height = titleHeight + blockHeights.reduce((sum, value) => sum + value, 0) + episodeGap * Math.max(0, episodeBlocks.length - 1) + 90;
+
+    const height = titleHeight
+      + blockHeights.reduce((sum, value) => sum + value, 0)
+      + episodeGap * Math.max(0, episodeBlocks.length - 1)
+      + 90;
 
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
+
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, width, height);
 
     ctx.fillStyle = '#1d2430';
     ctx.font = '700 34px Arial, sans-serif';
-    const titleLines = wrapText(ctx, String(graphTitle?.textContent || state.selectedProgram || '番組'), width - side * 2).slice(0, 2);
+    const titleLines = wrapText(
+      ctx,
+      String(graphTitle?.textContent || state.selectedProgram || '番組'),
+      width - side * 2
+    ).slice(0, 2);
     titleLines.forEach((line, index) => ctx.fillText(line, side, 54 + index * 40));
 
     const metaY = 54 + titleLines.length * 40 + 10;
     ctx.fillStyle = '#335cff';
     ctx.font = '700 22px Arial, sans-serif';
-    ctx.fillText(`${String(graphRankingTypeLabel?.textContent || getRankingLabel(state.rankingType))}ランキング・順位滞在時間`, side, metaY);
+    ctx.fillText(
+      `${String(graphRankingTypeLabel?.textContent || getRankingLabel(state.rankingType))}ランキング・順位滞在時間`,
+      side,
+      metaY
+    );
 
     let y = titleHeight;
-    episodeBlocks.forEach(({ episode, rankText }, index) => {
+
+    episodeBlocks.forEach(({ episode, rankLines }, index) => {
       const blockHeight = blockHeights[index];
+
       ctx.fillStyle = '#f7f8fb';
       ctx.strokeStyle = '#e1e5ec';
       ctx.lineWidth = 2;
@@ -305,17 +340,23 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.fillStyle = '#3b4350';
       ctx.fillText(`最高順位：${episode.bestRank}位`, side + 18, detailY);
       ctx.fillText(`ランクイン時間：${formatDuration(episode.totalMs)}`, side + 300, detailY);
-      ctx.fillText(`最長連続：${formatDuration(episode.longestMs)}${episode.isCurrent && episode.currentRunMs === episode.longestMs ? ' 継続中' : ''}`, side + 620, detailY);
+      ctx.fillText(
+        `最長連続：${formatDuration(episode.longestMs)}${episode.isCurrent && episode.currentRunMs === episode.longestMs ? ' 継続中' : ''}`,
+        side + 620,
+        detailY
+      );
 
       detailY += 42;
       ctx.fillStyle = '#697386';
       ctx.font = '600 19px Arial, sans-serif';
       ctx.fillText('順位別滞在時間', side + 18, detailY);
-      detailY += 30;
+
+      detailY += 32;
       ctx.fillStyle = '#1d2430';
       ctx.font = '600 20px Arial, sans-serif';
-      const rankLines = wrapText(ctx, rankText || '-', width - side * 2 - 36);
-      rankLines.forEach((line, lineIndex) => ctx.fillText(line, side + 18, detailY + lineIndex * 30));
+      rankLines.forEach((line, lineIndex) => {
+        ctx.fillText(line, side + 18, detailY + lineIndex * 32);
+      });
 
       y += blockHeight + episodeGap;
     });
@@ -325,20 +366,28 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.fillText(`最終更新：${String(latestUpdatedAt?.textContent || '--')}`, side, height - 36);
 
     return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('PNG生成に失敗しました')), 'image/png', 0.95);
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error('PNG生成に失敗しました')),
+        'image/png',
+        0.95
+      );
     });
   }
 
   function makeFileName() {
-    const safeTitle = String(state?.selectedProgram || 'ranking-duration').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+    const safeTitle = String(state?.selectedProgram || 'ranking-duration')
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .slice(0, 60);
     return `${safeTitle}_${String(state?.rankingType || 'ranking')}_duration.png`;
   }
 
   async function shareOrDownload() {
     if (shareButton.disabled || !currentSummary.length) return;
+
     const original = shareButton.textContent;
     shareButton.disabled = true;
     shareButton.textContent = '画像を作成中…';
+
     try {
       const blob = await buildShareBlob();
       const file = new File([blob], makeFileName(), { type: 'image/png' });
@@ -374,7 +423,9 @@ document.addEventListener('DOMContentLoaded', () => {
   shareButton.addEventListener('click', shareOrDownload);
   programSelect.addEventListener('change', () => requestAnimationFrame(render));
   rankingTabs?.addEventListener('click', () => requestAnimationFrame(render));
-  document.querySelectorAll('[data-view-mode]').forEach((button) => button.addEventListener('click', () => requestAnimationFrame(render)));
+  document.querySelectorAll('[data-view-mode]').forEach((button) => {
+    button.addEventListener('click', () => requestAnimationFrame(render));
+  });
 
   const graphObserver = new MutationObserver(() => requestAnimationFrame(render));
   graphObserver.observe(graphSection, { attributes: true, attributeFilter: ['hidden'] });
