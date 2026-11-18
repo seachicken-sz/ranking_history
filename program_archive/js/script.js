@@ -66,11 +66,23 @@ async function loadInitialData() {
     state.rankingManifest = rankingManifest;
     const favoriteFiles = Array.isArray(favoriteManifest.files) ? favoriteManifest.files : [];
 
-    for (let index = 0; index < favoriteFiles.length; index += 1) {
-      el.loadingDetail.textContent = `${index + 1} / ${favoriteFiles.length}日分`;
-      const json = await fetchJson(`../data_favorite/${favoriteFiles[index].path}`);
-      state.favoriteRows.push(...(Array.isArray(json.rows) ? json.rows : []));
+    let loadedFavoriteFiles = 0;
+    const favoriteResults = await mapWithConcurrency(favoriteFiles, 6, async (file) => {
+      try {
+        const json = await fetchJson(`../data_favorite/${file.path}`);
+        return Array.isArray(json.rows) ? json.rows : [];
+      } catch (error) {
+        console.error('[program_archive] お気に入り履歴の取得失敗:', file.path, error);
+        return null;
+      } finally {
+        loadedFavoriteFiles += 1;
+        el.loadingDetail.textContent = `${loadedFavoriteFiles} / ${favoriteFiles.length}日分`;
+      }
+    });
+    if (favoriteFiles.length && favoriteResults.every((rows) => rows === null)) {
+      throw new Error('お気に入り履歴を1件も取得できませんでした');
     }
+    state.favoriteRows = favoriteResults.flatMap((rows) => rows || []);
 
     buildProgramSelect();
     el.archiveUpdatedAt.textContent = favoriteManifest.updatedAt ? `最終更新 ${favoriteManifest.updatedAt}` : '';
@@ -96,6 +108,20 @@ async function fetchJson(url) {
   const response = await fetch(`${url}${separator}t=${Date.now()}`, { cache: 'no-store' });
   if (!response.ok) throw new Error(`${url} status=${response.status}`);
   return response.json();
+}
+
+// 通信の同時実行数を制限しつつ、結果の順序を入力順に保つ。
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await worker(items[index], index);
+    }
+  });
+  await Promise.all(runners);
+  return results;
 }
 
 function buildProgramSelect() {
@@ -167,12 +193,15 @@ async function loadRankingRowsForSelectedProgram() {
   const max = dates[dates.length - 1];
   const files = (state.rankingManifest.files || []).filter((file) => file.date >= min && file.date <= max);
 
-  for (const file of files) {
-    if (!state.rankingCache.has(file.date)) {
+  const missingFiles = files.filter((file) => !state.rankingCache.has(file.date));
+  await mapWithConcurrency(missingFiles, 6, async (file) => {
+    try {
       const json = await fetchJson(`../data/${file.path}`);
       state.rankingCache.set(file.date, Array.isArray(json.rows) ? json.rows : []);
+    } catch (error) {
+      console.error('[program_archive] ランキング履歴の取得失敗:', file.path, error);
     }
-  }
+  });
 
   const episodeIds = new Set(getSelectedEpisodes().map((episode) => episode.episodeId));
   const title = getSelectedProgramRows()[0]?.programTitle || '';
